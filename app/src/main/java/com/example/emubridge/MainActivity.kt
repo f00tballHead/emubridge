@@ -34,8 +34,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val toolbar: Toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
+     //   val toolbar: Toolbar = findViewById(R.id.toolbar)
+     //   setSupportActionBar(toolbar)
 
         statusText = findViewById(R.id.statusText)
         progressBar = findViewById(R.id.progressBar)
@@ -91,27 +91,53 @@ class MainActivity : AppCompatActivity() {
         targetEmulatorActivity: String
     ) {
         val romName = getFileNameFromUri(romUri) ?: "rom.bin"
-        val targetFile = File(romCacheDir, romName)
-
-        progressBar.visibility = View.VISIBLE
-        statusText.text = "Copying ROM..."
+        val currentTargetFile = File(romCacheDir, romName) // File that is being launched/copied
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val copied = copyWithProgress(romUri, targetFile)
-                if (copied) {
+                // Step 1: Clean up old ROM files, excluding the current target file if it exists
+                Log.d("MainActivity", "Cleaning up old ROMs in cache...")
+                romCacheDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.absolutePath != currentTargetFile.absolutePath) {
+                        if (file.delete()) {
+                            Log.d("MainActivity", "Deleted old ROM: ${file.name}")
+                        } else {
+                            Log.w("MainActivity", "Failed to delete old ROM: ${file.name}")
+                        }
+                    }
+                }
+                Log.d("MainActivity", "Cache cleanup finished.")
+
+                // Step 2: Check if the current target ROM needs to be copied or already exists
+                if (currentTargetFile.exists()) {
                     withContext(Dispatchers.Main) {
-                        statusText.text = "Launch emulator..."
-                        launchEmulator(targetFile, targetEmulatorPackage, targetEmulatorActivity)
+                        statusText.text = "ROM already cached. Launching emulator..."
+                        progressBar.visibility = View.GONE
+                        launchEmulator(currentTargetFile, targetEmulatorPackage, targetEmulatorActivity)
                     }
                 } else {
                     withContext(Dispatchers.Main) {
-                        statusText.text = "Copy failed."
+                        progressBar.visibility = View.VISIBLE
+                        statusText.text = "Copying ROM..."
+                    }
+                    val copied = copyWithProgress(romUri, currentTargetFile)
+                    if (copied) {
+                        withContext(Dispatchers.Main) {
+                            statusText.text = "Launch emulator..."
+                            launchEmulator(currentTargetFile, targetEmulatorPackage, targetEmulatorActivity)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            statusText.text = "Copy failed."
+                            progressBar.visibility = View.GONE
+                        }
                     }
                 }
             } catch (e: Exception) {
+                Log.e("MainActivity", "Error in handleRomLaunch: ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     statusText.text = "Error: ${e.localizedMessage}"
+                    progressBar.visibility = View.GONE
                 }
             }
         }
