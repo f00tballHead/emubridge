@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">EmuBridge</string>
+        <string name="settings">Settings</string>
 </resources>

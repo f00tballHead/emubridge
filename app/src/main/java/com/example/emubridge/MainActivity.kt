@@ -4,13 +4,18 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,18 +34,62 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val toolbar: Toolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
         statusText = findViewById(R.id.statusText)
         progressBar = findViewById(R.id.progressBar)
 
         val romUri = intent?.data
+        // Try to get emulator info from Intent extras first
+        val explicitEmulatorPackage = intent?.getStringExtra("TARGET_EMULATOR_PACKAGE")
+        val explicitEmulatorActivity = intent?.getStringExtra("TARGET_EMULATOR_ACTIVITY")
+
         if (romUri != null) {
-            handleRomLaunch(romUri)
+            if (explicitEmulatorPackage != null && explicitEmulatorActivity != null) {
+                // Emulator specified directly in the launch Intent
+                statusText.text = "Launching with specified emulator..."
+                handleRomLaunch(romUri, explicitEmulatorPackage, explicitEmulatorActivity)
+            } else {
+                // Fallback to SharedPreferences if not specified in Intent
+                val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+                val preferredEmulatorPackage = sharedPreferences.getString("emulator_package", null)
+                val preferredEmulatorActivity = sharedPreferences.getString("emulator_activity", null)
+
+                if (preferredEmulatorPackage != null && preferredEmulatorActivity != null) {
+                    handleRomLaunch(romUri, preferredEmulatorPackage, preferredEmulatorActivity)
+                } else {
+                    statusText.text = "Emulator not configured. Please go to settings or specify via Intent."
+                }
+            }
         } else {
             statusText.text = "No ROM provided"
         }
     }
 
-    private fun handleRomLaunch(romUri: Uri) {
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true // Return true to display the menu
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                // Launch SettingsActivity
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                true // Indicate that the event was handled
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun handleRomLaunch(
+        romUri: Uri,
+        targetEmulatorPackage: String,
+        targetEmulatorActivity: String
+    ) {
         val romName = getFileNameFromUri(romUri) ?: "rom.bin"
         val targetFile = File(romCacheDir, romName)
 
@@ -53,7 +102,7 @@ class MainActivity : AppCompatActivity() {
                 if (copied) {
                     withContext(Dispatchers.Main) {
                         statusText.text = "Launch emulator..."
-                        launchEmulator(targetFile)
+                        launchEmulator(targetFile, targetEmulatorPackage, targetEmulatorActivity)
                     }
                 } else {
                     withContext(Dispatchers.Main) {
@@ -97,28 +146,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchEmulator(romFile: File) {
+    private fun launchEmulator(
+        romFile: File,
+        targetEmulatorPackage: String,
+        targetEmulatorActivity: String
+    ) {
+        val romContentUri = FileProvider.getUriForFile(
+            this@MainActivity,
+            "${packageName}.fileprovider",
+            romFile
+        )
+
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setClassName("com.retroarch", "com.retroarch.browser.retroactivity.RetroActivityFuture")
+            setClassName(targetEmulatorPackage, targetEmulatorActivity)
             setDataAndType(
-                FileProvider.getUriForFile(
-                    this@MainActivity,
-                    "${packageName}.fileprovider",
-                    romFile
-                ),
-                "application/octet-stream"
+                romContentUri,
+                "application/octet-stream" // Or determine more specific MIME type if possible
             )
             flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            // You might need to add specific extras if the target emulator requires them
+            // e.g., putExtra("LIBRETRO_PATH", "/path/to/core.so")
+            // e.g., putExtra("CONFIG_PATH", "/path/to/config.cfg")
         }
 
         try {
+            Log.d("MainActivity", "Launching ROM $romContentUri with $targetEmulatorPackage")
             startActivity(intent)
+            finish() 
         } catch (e: Exception) {
-            Toast.makeText(this, "Failed to launch emulator", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity", "Failed to launch emulator $targetEmulatorPackage: ${e.message}", e)
+            Toast.makeText(this, "Failed to launch $targetEmulatorPackage: ${e.message}", Toast.LENGTH_LONG).show()
         }
-
-        finish()
     }
+
 
     private fun getFileNameFromUri(uri: Uri): String? {
         val cursor = contentResolver.query(uri, null, null, null, null)

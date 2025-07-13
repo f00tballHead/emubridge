@@ -1,0 +1,12 @@
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Storage Settings">
+
+        <Preference
+            app:key="rom_cache_directory_uri"
+            app:title="ROM Cache Directory"
+            app:summary="Click to select a directory for caching ROMs" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

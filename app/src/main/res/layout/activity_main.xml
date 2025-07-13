@@ -1,26 +1,52 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/layout"
+<!-- res/layout/activity_main.xml -->
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="24dp">
+    tools:context=".MainActivity">
 
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="wrap_content"
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Preparing..."
-        android:textSize="18sp"
-        android:layout_marginBottom="16dp"/>
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"> <!-- Or your app bar theme -->
 
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="250dp"
-        android:layout_height="wrap_content"
-        android:indeterminate="false"
-        android:max="100"
-        android:visibility="gone"/>
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Dark" />
 
-</LinearLayout>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Your other layout content, make sure it's below the AppBarLayout or use appropriate layout constraints -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"> <!-- Important for scrolling content below toolbar -->
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Loading..."
+            android:textColor="@color/teal_200"/>
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_gravity="center"
+            android:progressTint="@color/teal_700"
+            android:progressBackgroundTint="@color/teal_200"
+            android:visibility="gone"
+            tools:visibility="visible"/>
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
