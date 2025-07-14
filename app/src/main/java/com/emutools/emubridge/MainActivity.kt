@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
         romUri: Uri,
         targetEmulatorPackage: String,
         targetEmulatorActivity: String,
-        customExtras: Bundle // Ensure this parameter is present
+        currentCustomExtras: Bundle // Ensure this parameter is present
     ) {
         val romName = getFileNameFromUri(romUri) ?: "rom.bin"
 
@@ -261,14 +261,39 @@ class MainActivity : AppCompatActivity() {
 
                 // --- Step 3: Launch Emulator ---
                 if (targetRomDocumentFile != null && targetRomDocumentFile.exists()) {
+                    val finalRomPathUri = targetRomDocumentFile.uri // This is the path to replace %ROMCACHE% with
+                    Log.d("MainActivity", "Final ROM path for placeholder replacement: $finalRomPathUri")
+
+                    // Create a new Bundle for the processed extras to avoid concurrent modification issues
+                    // if currentCustomExtras was directly passed from intent.extras() and is immutable
+                    val processedEmulatorExtras = Bundle(currentCustomExtras) // Copy original extras
+
+                    // --- Perform placeholder replacement ---
+                    val keysToModify = HashSet(processedEmulatorExtras.keySet()) // Iterate over a copy of keys
+                    for (key in keysToModify) {
+                        val originalValue = processedEmulatorExtras.getString(key) // We only care about String extras
+
+                        if (originalValue != null && originalValue == "%ROMCACHE%") {
+                            processedEmulatorExtras.putString(key, finalRomPathUri.toString())
+                            Log.i("MainActivity", "Replaced placeholder for key '$key'. New value: '${finalRomPathUri.toString()}'")
+                        } else if (originalValue != null && originalValue.contains("%ROMCACHE%")) {
+                            val newValue = originalValue.replace("%ROMCACHE%", finalRomPathUri.toString())
+                            processedEmulatorExtras.putString(key, newValue)
+                            Log.i("MainActivity", "Replaced placeholder substring for key '$key'. Original: '$originalValue', New: '$newValue'")
+                        }
+                    }
+                    // --- End of placeholder replacement ---
+
+
                     withContext(Dispatchers.Main) {
                         statusText.text = "Copy complete. Launching emulator..."
                     }
+
                     launchEmulatorWithDocumentUri(
-                        targetRomDocumentFile.uri,
+                        finalRomPathUri, // Use the final ROM URI for the main data part of the intent
                         targetEmulatorPackage,
                         targetEmulatorActivity,
-                        customExtras
+                        processedEmulatorExtras // Pass the extras bundle with placeholders replaced
                     )
                 } else {
                     Log.e("MainActivity", "Target ROM DocumentFile is null or does not exist after SAF processing.")
