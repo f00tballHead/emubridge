@@ -1,4 +1,4 @@
-package com.example.emubridge
+package com.emutools.emubridge
 
 import android.content.Intent
 import android.net.Uri
@@ -25,10 +25,6 @@ import java.io.FileOutputStream
 class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
     private lateinit var progressBar: ProgressBar
-
-    private val romCacheDir: File by lazy {
-        File(getExternalFilesDir(null), "rom_cache").also { it.mkdirs() }
-    }
 
     private var userSelectedRomDirectoryUri: Uri? = null
 

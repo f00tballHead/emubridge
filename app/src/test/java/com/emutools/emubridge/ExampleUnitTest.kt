@@ -1,4 +1,4 @@
-package com.example.emubridge
+package com.emutools.emubridge
 
 import org.junit.Test
 

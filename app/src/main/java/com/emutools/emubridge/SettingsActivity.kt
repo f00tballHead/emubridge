@@ -1,24 +1,16 @@
-package com.example.emubridge
+package com.emutools.emubridge
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
-import androidx.activity.result.registerForActivityResult
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.semantics.text
-import androidx.fragment.app.commit
-import androidx.fragment.app.replace
 import androidx.preference.EditTextPreference
-import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
-import com.example.emubridge.R
-import kotlin.collections.remove
+import com.emutools.emubridge.R
 
 class SettingsActivity : AppCompatActivity() {
 

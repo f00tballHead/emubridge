@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.emubridge"
+    namespace = "com.emutools.emubridge"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.emubridge"
+        applicationId = "com.emutools.emubridge"
         minSdk = 32
         targetSdk = 36
         versionCode = 1

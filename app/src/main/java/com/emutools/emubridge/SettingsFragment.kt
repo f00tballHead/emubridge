@@ -1,17 +1,14 @@
-package com.example.emubridge
+package com.emutools.emubridge
 
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
-import androidx.activity.result.launch
-import androidx.compose.ui.graphics.vector.path
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
-import com.example.emubridge.R
-import kotlin.io.path.name
+import com.emutools.emubridge.R
 
 class SettingsFragment : PreferenceFragmentCompat() {
     private var settingsActivity: SettingsActivity? = null
