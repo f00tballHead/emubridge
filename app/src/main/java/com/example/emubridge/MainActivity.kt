@@ -13,7 +13,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
@@ -394,6 +393,7 @@ class MainActivity : AppCompatActivity() {
                 contentResolver.getType(romContentUri) ?: "application/octet-stream"
             )
             flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            putExtra("bootPath", romContentUri.toString())
             // Add any other flags or extras the emulator might need
         }
 
@@ -406,39 +406,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Failed to launch $targetEmulatorPackage: ${e.message}", Toast.LENGTH_LONG).show()
             statusText.text = "Failed to launch emulator. Ensure it's installed and supports this ROM type."
             progressBar.visibility = View.GONE // Hide progress if launch fails
-        }
-    }
-
-    private fun launchEmulator(
-        romFile: File,
-        targetEmulatorPackage: String,
-        targetEmulatorActivity: String
-    ) {
-        val romContentUri = FileProvider.getUriForFile(
-            this@MainActivity,
-            "${packageName}.fileprovider",
-            romFile
-        )
-
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setClassName(targetEmulatorPackage, targetEmulatorActivity)
-            setDataAndType(
-                romContentUri,
-                "application/octet-stream" // Or determine more specific MIME type if possible
-            )
-            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            // You might need to add specific extras if the target emulator requires them
-            // e.g., putExtra("LIBRETRO_PATH", "/path/to/core.so")
-            // e.g., putExtra("CONFIG_PATH", "/path/to/config.cfg")
-        }
-
-        try {
-            Log.d("MainActivity", "Launching ROM $romContentUri with $targetEmulatorPackage")
-            startActivity(intent)
-            finish() 
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to launch emulator $targetEmulatorPackage: ${e.message}", e)
-            Toast.makeText(this, "Failed to launch $targetEmulatorPackage: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
