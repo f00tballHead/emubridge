@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.EmuBridge" parent="android:ThemeOverlay.Material.Dark" />
+
+    <style name="SettingsTheme" parent="Theme.AppCompat.Light.NoActionBar"> <!-- Or parent="PreferenceThemeOverlay.v14.Material" -->
+        <!-- For preference titles -->
+        <item name="android:textColorPrimary">@color/teal_200</item>
+        <!-- For preference summaries -->
+        <item name="android:textColorSecondary">@color/teal_700</item>
+        <!-- For preference category titles -->
+        <item name="colorAccent">@color/white</item>
+        <!-- You might also need to style specific preference types if the above don't cover everything -->
+    </style>
+
 </resources>

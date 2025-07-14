@@ -1,16 +1,9 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <EditTextPreference
-        android:key="cache_path"
+        android:key="cache_path2"
         android:title="ROM Cache Subdirectory"
         android:defaultValue="rom_cache"
         android:summary="Subfolder in internal storage for temporary ROMs" />
-
-    <EditTextPreference
-        android:key="max_cache_size_mb"
-        android:title="Max Cache Size (MB)"
-        android:inputType="number"
-        android:defaultValue="512"
-        android:summary="Automatically deletes oldest files when cache exceeds this size" />
 
 </PreferenceScreen>
