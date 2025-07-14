@@ -1,9 +1,9 @@
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- In res/xml/preferences.xml -->
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <EditTextPreference
-        android:key="cache_path2"
-        android:title="ROM Cache Subdirectory"
-        android:defaultValue="rom_cache"
-        android:summary="Subfolder in internal storage for temporary ROMs" />
+    <Preference
+        app:key="rom_directory_picker_preference_key"
+        app:title="Select ROM Directory"
+        app:summary="Tap to choose your ROMs directory" />
 
 </PreferenceScreen>

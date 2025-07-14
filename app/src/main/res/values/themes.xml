@@ -9,7 +9,6 @@
         <item name="android:textColorSecondary">@color/teal_700</item>
         <!-- For preference category titles -->
         <item name="colorAccent">@color/white</item>
-        <!-- You might also need to style specific preference types if the above don't cover everything -->
     </style>
 
 </resources>
