@@ -55,6 +55,8 @@ dependencies {
     implementation(libs.androidx.preference.ktx)
     implementation(libs.material)
     implementation (libs.androidx.documentfile)
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.androidx.recyclerview)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

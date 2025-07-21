@@ -1,8 +1,11 @@
 package com.emutools.emubridge
 
+import android.content.ContentResolver
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Log
 import android.view.Menu
@@ -13,6 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.ui.graphics.vector.path
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
@@ -21,6 +25,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URI
+import kotlin.io.path.exists
 
 class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
@@ -86,34 +92,332 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        // --- Your existing logic using explicitEmulatorPackage, explicitEmulatorActivity, romUri ---
         if (romUri != null) {
-            if (userSelectedRomDirectoryUri == null) {
-                statusText.text = "ROM destination directory not configured or access not granted. Please set it in Settings and confirm access."
+            if (userSelectedRomDirectoryUri == null) { // This is the TARGET directory for the ROM
+                statusText.text = "ROM destination directory not configured. Please set it in main Settings."
                 return
             }
 
-            if (explicitEmulatorPackage != null && explicitEmulatorActivity != null) {
-                statusText.text = "Launching with specified emulator..."
-                // Pass additionalEmulatorExtras to handleRomLaunch
-                handleRomLaunch(romUri, explicitEmulatorPackage, explicitEmulatorActivity, additionalEmulatorExtras)
-            } else {
-                val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
-                val preferredEmulatorPackage = sharedPreferences.getString("emulator_package", null)
-                val preferredEmulatorActivity = sharedPreferences.getString("emulator_activity", null)
+            var emulatorPackageToUse: String? = null
+            var emulatorActivityToUse: String? = null
+            var customExtrasForLaunch = Bundle() // Initialize with empty bundle
 
-                if (preferredEmulatorPackage != null && preferredEmulatorActivity != null) {
-                    // Pass additionalEmulatorExtras here too, if you want them applied with preferred settings
-                    // Or pass an empty Bundle() if these extras are only for explicit launches
-                    handleRomLaunch(romUri, preferredEmulatorPackage, preferredEmulatorActivity, additionalEmulatorExtras)
+            val romSourceDirectoryString = getSourceDirectoryFromUri(this, romUri)
+        //    statusText.text = romSourceDirectoryString
+         //   statusText.text = EmulatorConfigManager.loadEmulatorConfigs(this)?.firstOrNull()?.sourceRomDirectoryUri
+
+            if (romSourceDirectoryString != null) {
+                val matchingConfig = EmulatorConfigManager.findConfigForRomDirectory(this, romSourceDirectoryString)
+
+                if (matchingConfig != null) {
+                    Log.i("MainActivity", "Found matching emulator config: ${matchingConfig.name}")
+                    emulatorPackageToUse = matchingConfig.emulatorPackageName
+                    emulatorActivityToUse = matchingConfig.emulatorActivityName
+                    customExtrasForLaunch.putAll(matchingConfig.customExtras) // Use extras from config
+                    // Now, also merge any *additional* extras from the intent itself,
+                    // potentially overwriting config extras if keys are the same.
+                    additionalEmulatorExtras.keySet().forEach { key ->
+                        val value = additionalEmulatorExtras.get(key)
+                        // Be careful about type, here assuming String for simplicity as in original code
+                        if (value is String) {
+                            customExtrasForLaunch.putString(key, value)
+                            Log.d("MainActivity", "Merging intent extra (overwriting if exists): Key='$key', Value='$value'")
+                        }
+                    }
+
                 } else {
-                    statusText.text = "Emulator not configured. Please go to settings or specify via Intent."
+                    Log.w("MainActivity", "No emulator config found for source directory: $romSourceDirectoryString")
+                }
+            } else {
+                Log.w("MainActivity", "Could not determine source directory for ROM URI: $romUri")
+            }
+
+            // Fallback or use explicit intent extras if no config matched or source dir unknown
+            if (emulatorPackageToUse == null || emulatorActivityToUse == null) {
+                if (explicitEmulatorPackage != null && explicitEmulatorActivity != null) {
+                    statusText.text = "Launching with explicitly specified emulator..."
+                    emulatorPackageToUse = explicitEmulatorPackage
+                    emulatorActivityToUse = explicitEmulatorActivity
+                    customExtrasForLaunch.putAll(additionalEmulatorExtras) // Use only intent extras
+                } else {
+                    val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+                    val preferredEmulatorPackage = sharedPreferences.getString("emulator_package", null)
+                    val preferredEmulatorActivity = sharedPreferences.getString("emulator_activity", null)
+
+                    if (preferredEmulatorPackage != null && preferredEmulatorActivity != null) {
+                        statusText.text = "Launching with preferred emulator (no specific config found)..."
+                        emulatorPackageToUse = preferredEmulatorPackage
+                        emulatorActivityToUse = preferredEmulatorActivity
+                        customExtrasForLaunch.putAll(additionalEmulatorExtras) // Use only intent extras with preferred
+                    } else {
+                        statusText.text = "Emulator not configured. Please set up an emulator configuration or specify via Intent."
+                        return
+                    }
                 }
             }
+
+            if (emulatorPackageToUse != null && emulatorActivityToUse != null) {
+                // Pass the determined customExtrasForLaunch
+                handleRomLaunch(romUri, emulatorPackageToUse!!, emulatorActivityToUse!!, customExtrasForLaunch)
+            } else {
+                statusText.text = "Could not determine emulator to launch. Check configurations."
+            }
+
         } else {
             statusText.text = "No ROM provided"
         }
     }
+
+    /**
+     * Attempts to determine a canonical "source directory" string from a given URI.
+     * This is crucial for matching against user-configured emulator settings.
+     *
+     * NOTE: This function makes several assumptions and might need refinement based on
+     * the exact nature of URIs your app receives. Test thoroughly!
+     *
+     * @param context Context for accessing ContentResolver.
+     * @param uri The URI of the ROM file.
+     * @return A string representing the source directory, or null if it cannot be determined.
+     */
+    fun getSourceDirectoryFromUri(context: Context, uri: Uri): String? {
+        val filePath = uri.path
+
+        if (filePath == null || filePath.isBlank()) {
+            println("Error: File path is null or blank.")
+            return null
+        }
+
+        try {
+            val file = File(filePath)
+
+            // Check if the path itself might be a directory
+            // If file.parent is null, it means it's likely a root path or just a filename without path separators
+            if (file.parent == null) {
+                // It could be a root like "/" or just "filename.txt"
+                // If it's just "filename.txt", its parent is conceptually the current working directory,
+                // but File(filePath).parentFile might be null.
+                // If the path is "/", its parent is null.
+                // A more robust check might be needed if you expect relative paths.
+                // For absolute paths, file.parentFile should give the correct parent.
+                val parentFile = file.parentFile
+                return parentFile?.absolutePath // or just parentFile?.path
+            }
+
+            // Get the parent directory's path as a string
+            return file.parent // This returns the parent path string directly
+            // or file.parentFile?.absolutePath for the canonical absolute path
+
+        } catch (e: SecurityException) {
+            println("Error: Security exception accessing path '$filePath': ${e.message}")
+            // This might happen if you don't have permissions for the path,
+            // though less common with just path string manipulation than actual file access.
+            return null
+        } catch (e: Exception) {
+            println("Error processing path '$filePath': ${e.message}")
+            // Catch other potential issues, though direct string ops are usually safe
+            return null
+        }
+
+
+      /*  when (uri.scheme) {
+            ContentResolver.SCHEME_CONTENT -> {
+                // This is the most common case for URIs from SAF or ContentProviders
+                try {
+                    // If it's a document URI, try to get the tree URI and then its document ID,
+                    // or try to backtrack from a child URI.
+                    if (DocumentsContract.isDocumentUri(context, uri)) {
+                        val documentId = DocumentsContract.getDocumentId(uri) // e.g., "tree_id:document_id" or "single_doc_id"
+
+                        // If it's a child document in a tree
+                        if (documentId.contains(":")) {
+                            val parts = documentId.split(":")
+                            if (parts.size > 1) {
+                                val treeDocumentId = parts[0] // This might represent the "root" of a selected tree
+                                var parentDocumentId = parts[1]
+
+                                // Attempt to get the parent of the document.
+                                // The direct "path" of a content URI isn't always like a file system path.
+                                // We are trying to find a stable identifier for the *directory* it resides in.
+
+                                // One strategy: If the original URI's path segments can be reliably parsed.
+                                // Content URI paths can be like: /tree/TREE_ID/document/DOCUMENT_ID_PATH
+                                // or /document/DOCUMENT_ID_PATH
+                                val pathSegments = uri.pathSegments
+                                if (pathSegments.isNotEmpty()) {
+                                    // Example: content://com.android.providers.downloads.documents/document/msf%3A123
+                                    // pathSegments = ["document", "msf:123"]
+                                    // Example: content://com.android.externalstorage.documents/tree/PRIMARY%3AMyFolder/document/PRIMARY%3AMyFolder%2FMySubfolder%2From.zip
+                                    // pathSegments = ["tree", "PRIMARY:MyFolder", "document", "PRIMARY:MyFolder/MySubfolder/rom.zip"]
+
+                                    // Attempt to find the "tree" part or a stable "document" part that represents the directory.
+                                    // This logic is highly dependent on the ContentProvider's URI structure.
+
+                                    var treeUriHint: Uri? = null
+                                    var directoryPathIdentifier: String? = null
+
+                                    if (pathSegments.size >= 2 && pathSegments[0] == "tree") {
+                                        // Likely a SAF tree URI descendant
+                                        // The segment after "tree" is often the root of the user-picked directory.
+                                        // e.g., "PRIMARY%3ADocuments"
+                                        val treeId = pathSegments[1]
+                                        treeUriHint = DocumentsContract.buildTreeDocumentUri(uri.authority, treeId)
+                                        Log.d("getSourceDirectory", "Identified potential tree base: $treeUriHint")
+                                        // For simplicity, we might use the tree URI string itself as the "source directory"
+                                        // if the ROM is directly within this tree root, or a more complex path if nested.
+
+                                        // If there's a "document" part further down, that's the actual item.
+                                        // We need its parent.
+                                        if (pathSegments.size >= 4 && pathSegments[2] == "document") {
+                                            val fullDocumentPath = pathSegments[3] // e.g., "PRIMARY%3ADocuments%2Ffolder%2From.nes"
+                                            val lastSlash = fullDocumentPath.lastIndexOf("%2F") // URL encoded slash
+                                            if (lastSlash != -1) {
+                                                directoryPathIdentifier = treeUriHint.toString() + "/" + fullDocumentPath.substring(0, lastSlash)
+                                            } else {
+                                                // ROM is directly in the root of the picked tree
+                                                directoryPathIdentifier = treeUriHint.toString()
+                                            }
+                                        } else {
+                                            // Could be the tree URI itself if it points to a directory from which ROMs are launched directly
+                                            directoryPathIdentifier = treeUriHint.toString()
+                                        }
+                                        Log.d("getSourceDirectory", "Derived directory path identifier: $directoryPathIdentifier for tree-based URI")
+                                        return directoryPathIdentifier
+                                    } else if (pathSegments.size >= 2 && pathSegments[0] == "document") {
+                                        // A single document URI, not necessarily part of a user-picked tree.
+                                        // e.g., content://com.android.providers.downloads.documents/document/123
+                                        // Its "parent" is harder to define without knowing the provider's logic.
+                                        // One might try to query for MediaStore.MediaColumns.RELATIVE_PATH or BUCKET_DISPLAY_NAME
+                                        // but that's provider-specific.
+                                        // For now, we might consider the URI up to the last segment as a "directory" proxy.
+                                        val docIdPath = pathSegments[1]
+                                        val lastSlash = docIdPath.lastIndexOf("%2F") // URL encoded slash
+                                        if (lastSlash != -1) {
+                                            // A crude way to get a "parent path" from the document ID itself if it's structured like a path
+                                            val parentPart = docIdPath.substring(0, lastSlash)
+                                            // Reconstruct a "directory URI" - this is speculative
+                                            directoryPathIdentifier = Uri.Builder()
+                                                .scheme(uri.scheme)
+                                                .authority(uri.authority)
+                                                .appendPath(pathSegments[0]) // "document"
+                                                .appendPath(parentPart) // Assumed parent path part
+                                                .build().toString()
+                                            Log.d("getSourceDirectory", "Derived directory path (speculative) for document URI: $directoryPathIdentifier")
+                                            return directoryPathIdentifier
+                                        } else {
+                                            // No parent path in document ID, perhaps it's a "flat" provider or root item.
+                                            // Consider the authority + "document" as the directory
+                                            directoryPathIdentifier = Uri.Builder()
+                                                .scheme(uri.scheme)
+                                                .authority(uri.authority)
+                                                .appendPath(pathSegments[0])
+                                                .build().toString()
+                                            Log.w("getSourceDirectory", "Could not determine parent path from single document URI segments: $uri. Using base: $directoryPathIdentifier")
+                                            return directoryPathIdentifier
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Fallback for general Document URIs:
+                        // If the URI itself could represent a directory chosen by the user and ROMs are directly inside.
+                        // Or if we can't reliably parse further.
+                        // This is less precise. You need to know how the user selects source directories.
+                        // If the user *always* picks a directory with SAF for a configuration,
+                        // and that configuration's sourceRomDirectoryUri is a tree URI,
+                        // then an incoming ROM URI should ideally be a descendant of that tree.
+                        // A simple `uri.toString().startsWith(configuredTreeUriString)` might work in specific scenarios.
+                        // However, we are trying to derive the directory *from the romUri* itself.
+
+                        Log.w("getSourceDirectory", "Unhandled Document URI structure or could not reliably determine parent. Falling back to URI string: $uri")
+                        // As a last resort for content URIs, if you cannot parse a clear "directory" part,
+                        // you might need a more sophisticated mapping or even user input if it's ambiguous.
+                        // Returning the URI authority or a known prefix if it's always from a specific provider.
+                        // For now, this is a placeholder. A more robust solution might involve querying
+                        // the ContentProvider for parent information if available, but that's not standard.
+                        return uri.authority // Very rough, might group too many things
+                    } else {
+                        // Non-document content URI. Example: content://media/external/file/123
+                        // The path itself might be the identifier.
+                        // Or query MediaStore for RELATIVE_PATH or BUCKET_DISPLAY_NAME if it's a MediaStore URI.
+                        // For now, let's try to get the path and remove the last segment.
+                        val path = uri.path
+                        if (path != null) {
+                            val lastSlash = path.lastIndexOf('/')
+                            if (lastSlash > 0) { // Ensure it's not the root slash
+                                val parentPath = path.substring(0, lastSlash)
+                                val dirUri = uri.buildUpon().path(parentPath).build()
+                                Log.d("getSourceDirectory", "Derived directory for generic content URI: $dirUri")
+                                return dirUri.toString()
+                            } else if (lastSlash == 0 && path.length > 1) { // e.g. /something
+                                val dirUri = uri.buildUpon().path("/").build() // Root of this content URI's path space
+                                Log.d("getSourceDirectory", "Derived root directory for generic content URI: $dirUri")
+                                return dirUri.toString()
+                            } else {
+                                Log.w("getSourceDirectory", "Cannot determine parent path for generic content URI: $uri. Using full path or authority.")
+                                // If no slashes or only root, the URI itself might represent the "directory" in some contexts
+                                return path ?: uri.authority // Fallback to path or authority
+                            }
+                        }
+                        Log.w("getSourceDirectory", "Content URI without standard document format or path: $uri")
+                        return uri.authority // Fallback
+                    }
+                } catch (e: Exception) {
+                    Log.e("getSourceDirectory", "Error processing content URI: $uri", e)
+                    return null // Or a very generic fallback like uri.getAuthority()
+                }
+            }
+            ContentResolver.SCHEME_FILE -> {
+                // File URIs (e.g., file:///sdcard/ROMS/nes/game.nes)
+                // This is less common with modern Android practices (SAF, Scoped Storage)
+                // but might occur if dealing with apps that don't use SAF or for internal files.
+                val filePath = uri.path
+                if (filePath != null) {
+                    try {
+                        val file = File(filePath)
+                        if (file.exists()) {
+                            val parentDir = file.parentFile
+                            if (parentDir != null) {
+                                Log.d("getSourceDirectory", "Derived directory for file URI: ${parentDir.absolutePath}")
+                                // You might want to return parentDir.toURI().toString() if you want to keep it as a URI string
+                                return parentDir.absolutePath // Or parentDir.toURI().toString()
+                            } else {
+                                Log.w("getSourceDirectory", "File URI has no parent directory (already a root?): $uri")
+                                return null // Or handle as a root directory if appropriate
+                            }
+                        } else {
+                            Log.w("getSourceDirectory", "File URI points to a non-existent file: $uri")
+                            return null
+                        }
+                    } catch (e: Exception) {
+                        Log.e("getSourceDirectory", "Error processing file URI: $uri", e)
+                        return null
+                    }
+                }
+                return null
+            }
+            else -> {
+                Log.w("getSourceDirectory", "Unsupported URI scheme: ${uri.scheme} for $uri")
+                return null // Or perhaps uri.toString() if you want to try a direct match for unknown schemes
+            }
+        }*/
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu) // Your existing menu
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
 
     private fun loadUserChosenDirectorySafUri() { // Ensure this is called
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
@@ -133,25 +437,6 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "No user ROM directory SAF URI found in SharedPreferences.")
         }
     }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true // Return true to display the menu
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_settings -> {
-                // Launch SettingsActivity
-                val intent = Intent(this, SettingsActivity::class.java)
-                startActivity(intent)
-                true // Indicate that the event was handled
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-    // In MainActivity.kt
 
     private fun handleRomLaunch(
         romUri: Uri,

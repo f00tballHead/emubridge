@@ -1,6 +1,7 @@
 package com.emutools.emubridge
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -76,5 +77,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
             }
         }
         return uri.path ?: uri.toString()
+    }
+
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        val key = preference.key
+        if (key == "emulator_configurations_screen") {
+            val intent = Intent(requireActivity(), EmulatorSettingsActivity::class.java)
+            startActivity(intent)
+            return true // Indicate that the click was handled
+        }
+        // Handle other direct preference clicks here if necessary,
+        // or let the default behavior (like for CheckBoxPreference) happen.
+        return super.onPreferenceTreeClick(preference)
     }
 }

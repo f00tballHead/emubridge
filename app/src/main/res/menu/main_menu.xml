@@ -7,9 +7,4 @@
         android:icon="@drawable/ic_settings"
         android:title="@string/settings"
         app:showAsAction="ifRoom" />
-    <!--
-        android:title: Text for accessibility and if shown as text.
-        app:showAsAction="ifRoom": Shows the icon in the AppBar if there's space.
-                                  Other options: "always", "never", "withText".
-    -->
 </menu>

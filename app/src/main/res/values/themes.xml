@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.EmuBridge" parent="android:ThemeOverlay.Material.Dark" />
+    <style name="Theme.EmuBridge" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
 
-    <style name="SettingsTheme" parent="Theme.AppCompat.Light.NoActionBar"> <!-- Or parent="PreferenceThemeOverlay.v14.Material" -->
+    <style name="SettingsTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- For preference titles -->
         <item name="android:textColorPrimary">@color/teal_200</item>
         <!-- For preference summaries -->
