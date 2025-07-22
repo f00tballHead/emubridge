@@ -9,5 +9,10 @@ data class EmulatorConfig(
     val sourceRomDirectoryUri: String,
     val emulatorPackageName: String,
     val emulatorActivityName: String,
+    val intentFlags: Int = 0,
     val customExtras: Bundle = Bundle()
-)
+) {
+    fun hasFlag(flag: Int): Boolean {
+        return (intentFlags and flag) == flag
+    }
+}

@@ -4,14 +4,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".EmulatorSettingsActivity">
+    tools:context=".EmulatorSettingsActivity"
+    android:fitsSystemWindows="true">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvEmulatorConfigs"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        tools:listitem="@layout/item_emulator_config"/>
+        tools:listitem="@layout/item_emulator_config"
+        android:fitsSystemWindows="true"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAddEmulatorConfig"
@@ -20,7 +22,8 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         app:srcCompat="@android:drawable/ic_input_add"
-        android:contentDescription="Add Emulator Configuration"/>
+        android:contentDescription="Add Emulator Configuration"
+        android:fitsSystemWindows="true"/>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
     

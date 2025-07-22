@@ -14,14 +14,15 @@ import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox // Added for Intent Flags
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.ui.graphics.vector.path
-import androidx.compose.ui.semantics.setText
-import androidx.core.content.getSystemService
+// import androidx.compose.ui.graphics.vector.path // Not used
+// import androidx.compose.ui.semantics.setText // Not used
+// import androidx.core.content.getSystemService // Not used
 // import androidx.core.app.NavUtils // Uncomment if you use NavUtils for Up navigation
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -32,24 +33,26 @@ import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.util.Collections
 import java.util.UUID
+import android.content.pm.PackageManager
+import android.os.Build
 
-// Data class for App Picker (can be in its own file or here)
-data class AppInfo(
-    val appName: CharSequence,
-    val packageName: String,
-    val activityName: String?, // Main launchable activity
-    val icon: Drawable?
-)
-
-// Assume EmulatorConfig is defined (e.g., in its own file or EmulatorConfigManager.kt)
+// Assume EmulatorConfig is defined elsewhere and includes an intentFlags: Int field
 // data class EmulatorConfig(
 //    val id: String = UUID.randomUUID().toString(),
 //    val name: String,
 //    val sourceRomDirectoryUri: String,
 //    val emulatorPackageName: String,
 //    val emulatorActivityName: String,
+//    val intentFlags: Int = 0, // IMPORTANT: Ensure this field exists
 //    val customExtras: Bundle = Bundle()
 // )
+
+data class AppInfo(
+    val appName: CharSequence,
+    val packageName: String,
+    val activityName: String?,
+    val icon: Drawable?
+)
 
 class EmulatorSettingsActivity : AppCompatActivity() {
 
@@ -57,43 +60,12 @@ class EmulatorSettingsActivity : AppCompatActivity() {
     private lateinit var fabAddEmulator: FloatingActionButton
     private lateinit var emulatorConfigsAdapter: EmulatorConfigsAdapter
     private var currentEditingConfig: EmulatorConfig? = null
+    private val gson = Gson() // For JSON processing
 
     private val directoryPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-            uri?.let { selectedUri ->
-                // Persist permissions for the original content URI - STILL IMPORTANT if you ever need to use SAF
-                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                try {
-                    contentResolver.takePersistableUriPermission(selectedUri, takeFlags)
-                    Log.d("EmulatorSettings", "Persisted permission for original content URI: $selectedUri")
-                } catch (e: SecurityException) {
-                    Log.e("EmulatorSettings", "Failed to persist permission for $selectedUri", e)
-                }
-
-                // --- NEW: Attempt to convert to File Path ---
-                val filePath = convertSafTreeUriToFilePath(this, selectedUri)
-
-                if (filePath != null) {
-                    Log.i("EmulatorSettings", "Converted SAF Tree URI '$selectedUri' to File Path: '$filePath'")
-                    currentEmulatorConfigBuilder?.sourceRomDirectoryUri = filePath
-                    currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)?.setText(filePath)
-                } else {
-                    Log.w("EmulatorSettings", "Could not convert SAF Tree URI '$selectedUri' to a file path. Storing TreeDocumentId as fallback.")
-                    // Fallback to TreeDocumentId if conversion fails (recommended)
-                    val treeDocId = DocumentsContract.getTreeDocumentId(selectedUri)
-                    if (treeDocId != null) {
-                        currentEmulatorConfigBuilder?.sourceRomDirectoryUri = treeDocId
-                        currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)
-                            ?.setText("ID: $treeDocId (Path conversion failed)")
-                        Toast.makeText(this, "Could not get direct file path. Using directory ID.", Toast.LENGTH_LONG).show()
-                    } else {
-                        currentEmulatorConfigBuilder?.sourceRomDirectoryUri = selectedUri.toString() // Worst case
-                        currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)?.setText(selectedUri.toString())
-                        Toast.makeText(this, "Could not identify directory.", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
+            // Updated to call handleDirectorySelection
+            handleDirectorySelection(uri)
         }
 
     /**
@@ -165,13 +137,16 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         }
     }
 
+
     private var currentDialogView: View? = null
     private var currentEmulatorConfigBuilder: TempEmulatorConfigBuilder? = null
+
     data class TempEmulatorConfigBuilder(
         var name: String = "",
         var sourceRomDirectoryUri: String = "",
         var emulatorPackageName: String = "",
         var emulatorActivityName: String = "",
+        var intentFlags: Int = 0, // Added for Intent Flags
         var customExtrasJson: String = "{}"
     )
 
@@ -182,11 +157,14 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         // --- Toolbar Setup ---
         // Example: If you have a Toolbar with id 'toolbar' in activity_emulator_settings.xml
         // and your Activity theme is a .NoActionBar theme:
-        // val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        // val toolbar: com.google.android.material.appbar.MaterialToolbar = findViewById(R.id.toolbar)
         // setSupportActionBar(toolbar)
         // supportActionBar?.setDisplayHomeAsUpEnabled(true)
         // supportActionBar?.title = "Emulator Configurations" // Or from manifest's android:label
-        // --- End Toolbar Setup ---
+
+        // Enable Up button if you have a parent activity declared in the manifest
+        // supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
 
         recyclerView = findViewById(R.id.rvEmulatorConfigs)
         fabAddEmulator = findViewById(R.id.fabAddEmulatorConfig)
@@ -195,7 +173,7 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         loadConfigs()
 
         fabAddEmulator.setOnClickListener {
-            currentEditingConfig = null // Ensure we are adding a new one
+            currentEditingConfig = null
             showAddEditEmulatorDialog(null)
         }
     }
@@ -216,6 +194,7 @@ class EmulatorSettingsActivity : AppCompatActivity() {
     }
 
     private fun loadConfigs() {
+        // Ensure EmulatorConfigManager and EmulatorConfig are correctly defined elsewhere
         val configs = EmulatorConfigManager.loadEmulatorConfigs(this)
         emulatorConfigsAdapter.updateData(configs)
     }
@@ -245,30 +224,54 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         val etEmulatorActivity = dialogViewInflated.findViewById<EditText>(R.id.etEmulatorActivity)
         val etCustomParams = dialogViewInflated.findViewById<EditText>(R.id.etCustomParameters)
 
+        // --- Intent Flag CheckBoxes ---
+        val cbFlagNewTask = dialogViewInflated.findViewById<CheckBox>(R.id.cbFlagActivityNewTask)
+        val cbFlagClearTop = dialogViewInflated.findViewById<CheckBox>(R.id.cbFlagActivityClearTop)
+        val cbFlagSingleTop = dialogViewInflated.findViewById<CheckBox>(R.id.cbFlagActivitySingleTop)
+        val cbFlagClearTask = dialogViewInflated.findViewById<CheckBox>(R.id.cbFlagActivityClearTask)
+        val cbFlagNoHistory = dialogViewInflated.findViewById<CheckBox>(R.id.cbFlagActivityNoHistory)
+        // --- End Intent Flag CheckBoxes ---
+
+
         etSourceDirectoryDisplay.isEnabled = false // User selects via button
 
         if (configToEdit != null) {
-            currentEditingConfig = configToEdit // Keep track of which original config is being edited
+            currentEditingConfig = configToEdit
             currentEmulatorConfigBuilder?.apply {
                 name = configToEdit.name
-                sourceRomDirectoryUri = configToEdit.sourceRomDirectoryUri
+                sourceRomDirectoryUri = configToEdit.sourceRomDirectoryUri ?: ""
                 emulatorPackageName = configToEdit.emulatorPackageName
                 emulatorActivityName = configToEdit.emulatorActivityName
-                customExtrasJson = Gson().toJson(bundleToMap(configToEdit.customExtras))
+                intentFlags = configToEdit.intentFlags // Load intent flags
+                customExtrasJson = gson.toJson(bundleToMap(configToEdit.customExtras))
             }
             etName.setText(currentEmulatorConfigBuilder?.name)
             etSourceDirectoryDisplay.setText(currentEmulatorConfigBuilder?.sourceRomDirectoryUri)
             etEmulatorPackage.setText(currentEmulatorConfigBuilder?.emulatorPackageName)
             etEmulatorActivity.setText(currentEmulatorConfigBuilder?.emulatorActivityName)
             etCustomParams.setText(currentEmulatorConfigBuilder?.customExtrasJson)
+
+            // Set CheckBox states from loaded config
+            currentEmulatorConfigBuilder?.intentFlags?.let { flags ->
+                cbFlagNewTask.isChecked = (flags and Intent.FLAG_ACTIVITY_NEW_TASK) != 0
+                cbFlagClearTop.isChecked = (flags and Intent.FLAG_ACTIVITY_CLEAR_TOP) != 0
+                cbFlagSingleTop.isChecked = (flags and Intent.FLAG_ACTIVITY_SINGLE_TOP) != 0
+                cbFlagClearTask.isChecked = (flags and Intent.FLAG_ACTIVITY_CLEAR_TASK) != 0
+                cbFlagNoHistory.isChecked = (flags and Intent.FLAG_ACTIVITY_NO_HISTORY) != 0
+            }
+
         } else {
-            currentEditingConfig = null // Explicitly ensure no config is being edited
-            // For new config, currentEmulatorConfigBuilder is already fresh
+            currentEditingConfig = null
             etCustomParams.setText("{}") // Default for new config
+            // Ensure checkboxes are unchecked for new config (default state)
+            cbFlagNewTask.isChecked = false
+            cbFlagClearTop.isChecked = false
+            cbFlagSingleTop.isChecked = false
+            cbFlagClearTask.isChecked = false
         }
 
         btnSelectSourceDirectory.setOnClickListener {
-            directoryPickerLauncher.launch(null) // selected URI will update currentEmulatorConfigBuilder
+            directoryPickerLauncher.launch(null)
         }
 
         btnSelectEmulatorApp.setOnClickListener {
@@ -282,7 +285,7 @@ class EmulatorSettingsActivity : AppCompatActivity() {
                 } else {
                     currentEmulatorConfigBuilder?.emulatorActivityName = ""
                     etEmulatorActivity.setText("")
-                    etEmulatorActivity.hint = "Enter Activity Name" // Prompt for manual entry
+                    etEmulatorActivity.hint = "Enter Activity Name"
                     Toast.makeText(this, "Could not determine main activity. Please enter manually.", Toast.LENGTH_LONG).show()
                 }
             }
@@ -291,64 +294,83 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(if (configToEdit == null) "Add Emulator Config" else "Edit Emulator Config")
             .setView(dialogViewInflated)
-            .setPositiveButton(if (configToEdit ==null) "Add" else "Save") { dialogInterface, _ ->
-                // Retrieve values directly from TempEmulatorConfigBuilder which should be up-to-date
-                val name = currentEmulatorConfigBuilder?.name ?: etName.text.toString().trim()
-                val sourceDir = currentEmulatorConfigBuilder?.sourceRomDirectoryUri ?: etSourceDirectoryDisplay.text.toString().trim()
-                val emuPackage = currentEmulatorConfigBuilder?.emulatorPackageName ?: etEmulatorPackage.text.toString().trim()
-                val emuActivity = currentEmulatorConfigBuilder?.emulatorActivityName ?: etEmulatorActivity.text.toString().trim()
-                val paramsJson = etCustomParams.text.toString().trim() // Custom params can be directly from EditText
-
-                // Update builder from EditTexts as a final catch-all, in case of direct edits
+            .setPositiveButton(if (configToEdit == null) "Add" else "Save") { dialogInterface, _ ->
+                // Update builder from EditTexts for final values
                 currentEmulatorConfigBuilder?.name = etName.text.toString().trim()
+                // sourceRomDirectoryUri is updated by directoryPickerLauncher/handleDirectorySelection
                 currentEmulatorConfigBuilder?.emulatorPackageName = etEmulatorPackage.text.toString().trim()
                 currentEmulatorConfigBuilder?.emulatorActivityName = etEmulatorActivity.text.toString().trim()
-                // sourceRomDirectoryUri is updated by directoryPickerLauncher
+                currentEmulatorConfigBuilder?.customExtrasJson = etCustomParams.text.toString().trim()
+
+
+                // --- Combine Intent Flags from CheckBoxes ---
+                var combinedFlags = 0
+                if (cbFlagNewTask.isChecked) combinedFlags = combinedFlags or Intent.FLAG_ACTIVITY_NEW_TASK
+                if (cbFlagClearTop.isChecked) combinedFlags = combinedFlags or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (cbFlagSingleTop.isChecked) combinedFlags = combinedFlags or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                if (cbFlagClearTask.isChecked) {
+                    combinedFlags = combinedFlags or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    // Ensure NEW_TASK is also set if CLEAR_TASK is set, as it's required
+                    if (!cbFlagNewTask.isChecked) {
+                        combinedFlags = combinedFlags or Intent.FLAG_ACTIVITY_NEW_TASK
+                        Log.i("EmulatorSettings", "FLAG_ACTIVITY_NEW_TASK implicitly added with FLAG_ACTIVITY_CLEAR_TASK.")
+                        // Optionally, you could also check cbFlagNewTask visually here if you want to be strict
+                    }
+                }
+                currentEmulatorConfigBuilder?.intentFlags = combinedFlags
+                // --- End Combine Intent Flags ---
 
                 if (currentEmulatorConfigBuilder?.name.isNullOrBlank() ||
-                    currentEmulatorConfigBuilder?.sourceRomDirectoryUri.isNullOrBlank() ||
+                    currentEmulatorConfigBuilder?.sourceRomDirectoryUri.isNullOrBlank() || // Ensure this is not just ""
                     currentEmulatorConfigBuilder?.emulatorPackageName.isNullOrBlank() ||
                     currentEmulatorConfigBuilder?.emulatorActivityName.isNullOrBlank()) {
                     Toast.makeText(this, "All fields except Custom Parameters are required.", Toast.LENGTH_LONG).show()
-                    return@setPositiveButton // Don't dismiss, keep dialog open
+                    // Re-show dialog without dismissing by not calling dialogInterface.dismiss() directly
+                    // This requires a more complex dialog setup to prevent auto-dismissal on positive button.
+                    // For simplicity here, we'll let it dismiss and the user has to re-open.
+                    // A better way is to get the positive button from the dialog and set its onClickListener manually
+                    // to control dismissal.
+                    return@setPositiveButton
                 }
 
                 val customExtrasBundle = Bundle()
                 try {
+                    val paramsJson = currentEmulatorConfigBuilder!!.customExtrasJson
                     if (paramsJson.isNotBlank() && paramsJson != "{}") {
                         val type = object : TypeToken<Map<String, String>>() {}.type
-                        val paramsMap: Map<String, String> = Gson().fromJson(paramsJson, type)
+                        val paramsMap: Map<String, String> = gson.fromJson(paramsJson, type)
                         paramsMap.forEach { (key, value) -> customExtrasBundle.putString(key, value) }
                     }
                 } catch (e: Exception) {
                     Toast.makeText(this, "Error parsing custom parameters JSON: ${e.message}", Toast.LENGTH_LONG).show()
                     Log.e("EmulatorSettings", "JSON parsing error", e)
-                    return@setPositiveButton // Don't dismiss
+                    return@setPositiveButton
                 }
 
                 val finalConfig = EmulatorConfig(
                     id = currentEditingConfig?.id ?: UUID.randomUUID().toString(),
-                    name = currentEmulatorConfigBuilder!!.name, // Use !! as we checked for null/blank
+                    name = currentEmulatorConfigBuilder!!.name,
                     sourceRomDirectoryUri = currentEmulatorConfigBuilder!!.sourceRomDirectoryUri,
                     emulatorPackageName = currentEmulatorConfigBuilder!!.emulatorPackageName,
                     emulatorActivityName = currentEmulatorConfigBuilder!!.emulatorActivityName,
+                    intentFlags = currentEmulatorConfigBuilder!!.intentFlags, // Save intent flags
                     customExtras = customExtrasBundle
                 )
 
-                if (currentEditingConfig == null) { // It's a new config
+                if (currentEditingConfig == null) {
                     EmulatorConfigManager.addEmulatorConfig(this, finalConfig)
-                } else { // It's an existing config being edited
+                } else {
                     EmulatorConfigManager.updateEmulatorConfig(this, finalConfig)
                 }
-                loadConfigs() // Refresh the list
-                dialogInterface.dismiss()
+                loadConfigs()
+                dialogInterface.dismiss() // Dismiss on success
                 cleanUpAfterDialog()
             }
             .setNegativeButton("Cancel") { dialogInterface, _ ->
                 dialogInterface.cancel()
                 cleanUpAfterDialog()
             }
-            .setCancelable(false) // Or true, depending on preference
+            .setCancelable(false)
             .show()
     }
 
@@ -358,35 +380,75 @@ class EmulatorSettingsActivity : AppCompatActivity() {
         currentEditingConfig = null
     }
 
-
     private fun showAppPickerDialog(onAppSelected: (appInfo: AppInfo) -> Unit) {
         val pm = packageManager
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+        val mainLauncherIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
         Log.d("AppPicker", "Querying for ACTION_MAIN, CATEGORY_LAUNCHER activities...")
-        val appPackages: List<ResolveInfo> = pm.queryIntentActivities(mainIntent, 0)
-        Log.d("AppPicker", "Found ${appPackages.size} ResolveInfo objects initially.")
 
-        if (appPackages.isEmpty()) {
-            Toast.makeText(this, "No launchable applications found by initial query.", Toast.LENGTH_SHORT).show()
+        val launchablePackages: List<ResolveInfo> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentActivities(mainLauncherIntent, PackageManager.ResolveInfoFlags.of(0L))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(mainLauncherIntent, 0) // Use 0 for default behavior
+        }
+        Log.d("AppPicker", "Found ${launchablePackages.size} LAUNCHER ResolveInfo objects initially.")
+
+        if (launchablePackages.isEmpty()) {
+            Toast.makeText(this, "No launchable applications found.", Toast.LENGTH_SHORT).show()
             return
         }
 
         val appList = mutableListOf<AppInfo>()
-        for (resolveInfo in appPackages) {
-            val activityInfo = resolveInfo.activityInfo
-            if (activityInfo != null) {
-                try {
-                    val appName = resolveInfo.loadLabel(pm)
-                    val packageName = activityInfo.packageName
-                    val activityName = activityInfo.name
-                    val icon = resolveInfo.loadIcon(pm)
-                    appList.add(AppInfo(appName, packageName, activityName, icon))
-                } catch (e: Exception) {
-                    Log.e("AppPicker", "Error loading info for package: ${activityInfo.packageName}. Skipping.", e)
-                }
+        val processedPackages = mutableSetOf<String>()
+
+        for (launcherResolveInfo in launchablePackages) {
+            val launcherActivityInfo = launcherResolveInfo.activityInfo
+            if (launcherActivityInfo == null || processedPackages.contains(launcherActivityInfo.packageName)) {
+                continue
             }
+
+            val appName = launcherResolveInfo.loadLabel(pm)
+            val packageName = launcherActivityInfo.packageName
+            val icon = launcherResolveInfo.loadIcon(pm)
+            var activityNameToUse = launcherActivityInfo.name // Default to the main launcher activity
+            var specificActivityFoundByName = false
+
+            try {
+                val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong()))
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES)
+                }
+
+                if (packageInfo.activities != null) {
+                    for (activity in packageInfo.activities) {
+                        // Check for the specific name.
+                        // activity.name is fully qualified (e.g., com.example.EmulatorActivity)
+                        if (activity.name.endsWith(".EmulationActivity")) { // Or your exact desired name
+                            activityNameToUse = activity.name // Use the fully qualified name
+                            specificActivityFoundByName = true
+                            Log.i("AppPicker", "Found specific activity '.EmulationActivity' in package '$packageName': $activityNameToUse")
+                            break // Found it, no need to check further activities in this package
+                        }
+                    }
+                }
+            } catch (e: PackageManager.NameNotFoundException) {
+                Log.e("AppPicker", "Package not found when trying to get its activities: $packageName", e)
+                // Continue with the default launcher activity for this app (activityNameToUse is already set to launcher)
+            } catch (e: Exception) {
+                Log.e("AppPicker", "Error processing package activities for $packageName: ${e.message}", e)
+            }
+
+            if (!specificActivityFoundByName) {
+                Log.d("AppPicker", "Specific '.EmulationActivity' not found in package '$packageName'. Using default launcher: ${launcherActivityInfo.name}")
+            }
+
+            appList.add(AppInfo(appName, packageName, activityNameToUse, icon))
+            processedPackages.add(packageName)
         }
-        Log.d("AppPicker", "Successfully loaded ${appList.size} apps into the list for the dialog.")
+
+        Log.d("AppPicker", "Successfully processed ${appList.size} apps into the list for the dialog.")
 
         if (appList.isEmpty()) {
             Toast.makeText(this, "No applications could be loaded into the picker.", Toast.LENGTH_SHORT).show()
@@ -395,27 +457,23 @@ class EmulatorSettingsActivity : AppCompatActivity() {
 
         Collections.sort(appList, compareBy { it.appName.toString().lowercase() })
 
+        // ... rest of your dialog showing code (LayoutInflater, RecyclerView setup, AlertDialog) ...
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_app_picker_layout, null)
         val recyclerViewDialog = dialogView.findViewById<RecyclerView>(R.id.rvAppPickerListInDialog)
-        // recyclerViewDialog.layoutManager = LinearLayoutManager(this) // Can be set in XML too
-
-        lateinit var dialog: AlertDialog // Declare dialog here
-
+        lateinit var dialog: AlertDialog // make it accessible for dismiss
         val appPickerAdapter = AppPickerAdapter(appList) { selectedAppInfo ->
             onAppSelected(selectedAppInfo)
-            dialog.dismiss() // Dismiss the dialog directly
+            dialog.dismiss() // dismiss the dialog on selection
         }
-
         recyclerViewDialog.adapter = appPickerAdapter
-
+        if (recyclerViewDialog.layoutManager == null) { // Ensure LayoutManager is set
+            recyclerViewDialog.layoutManager = LinearLayoutManager(this)
+        }
         dialog = AlertDialog.Builder(this)
             .setTitle("Select Emulator Application")
             .setView(dialogView)
-            .setNegativeButton("Cancel") { d, _ ->
-                d.dismiss()
-            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .create()
-
         dialog.show()
     }
 
@@ -426,7 +484,7 @@ class EmulatorSettingsActivity : AppCompatActivity() {
             if (value is String) {
                 map[key] = value
             } else if (value != null) {
-                map[key] = value.toString()
+                map[key] = value.toString() // Convert other types to string for simplicity
             }
         }
         return map
@@ -434,13 +492,13 @@ class EmulatorSettingsActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cleanUpAfterDialog() // Just in case a dialog was somehow left open
+        cleanUpAfterDialog()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
-            // NavUtils.navigateUpFromSameTask(this) // If parentActivityName is set
-            finish() // Simpler way to go back
+            // NavUtils.navigateUpFromSameTask(this) // If using NavUtils for Up navigation
+            finish() // Simple back navigation
             return true
         }
         return super.onOptionsItemSelected(item)
@@ -448,63 +506,78 @@ class EmulatorSettingsActivity : AppCompatActivity() {
 
     private fun handleDirectorySelection(selectedTreeUri: Uri?) {
         selectedTreeUri?.let { treeUri ->
-            // Persist read/write permissions (important for SAF)
             val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+            try {
+                contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+                Log.d("EmulatorSettings", "Persisted permission for URI: $treeUri")
+            } catch (e: SecurityException) {
+                Log.e("EmulatorSettings", "Failed to persist permission for $treeUri", e)
+                Toast.makeText(this, "Failed to get permanent access to directory.", Toast.LENGTH_LONG).show()
+                // Do not proceed if permission failed
+            }
 
-            var directoryIdentifier: String? = null
 
-            // Try to get the Tree Document ID - this is usually the best "path part"
-            if (DocumentsContract.isTreeUri(treeUri)) { // Check if it's indeed a tree URI
-                directoryIdentifier = DocumentsContract.getTreeDocumentId(treeUri)
-                if (directoryIdentifier != null) {
-                    Log.i("EmulatorSettings", "Using TreeDocumentId as directory identifier: $directoryIdentifier")
+            // --- Attempt to convert to File Path (more robust handling) ---
+            val filePath = convertSafTreeUriToFilePath(this, treeUri)
+            val directoryIdentifier: String
+
+            if (filePath != null) {
+                Log.i("EmulatorSettings", "Using direct File Path: '$filePath'")
+                directoryIdentifier = filePath
+            } else {
+                Log.w("EmulatorSettings", "Could not convert to file path. Using TreeDocumentId as fallback.")
+                val treeDocId = if (DocumentsContract.isTreeUri(treeUri)) DocumentsContract.getTreeDocumentId(treeUri) else null
+                if (treeDocId != null) {
+                    directoryIdentifier = treeDocId
+                    Toast.makeText(this, "Using directory ID (path conversion failed).", Toast.LENGTH_SHORT).show()
                 } else {
-                    Log.w("EmulatorSettings", "Could not get TreeDocumentId from tree URI: $treeUri. Falling back to generic extraction.")
-                    directoryIdentifier = extractPathIdentifierFromGenericUri(treeUri)
+                    // Fallback further to the URI string itself if everything else fails
+                    directoryIdentifier = treeUri.toString()
+                    Log.e("EmulatorSettings", "Could not get TreeDocumentId or FilePath. Using full URI string: $treeUri")
+                    Toast.makeText(this, "Could not identify directory. Storing full URI.", Toast.LENGTH_LONG).show()
                 }
-            } else {
-                Log.w("EmulatorSettings", "Selected URI is not a tree URI: $treeUri. Attempting to extract path identifier.")
-                directoryIdentifier = extractPathIdentifierFromGenericUri(treeUri)
             }
 
+            currentEmulatorConfigBuilder?.sourceRomDirectoryUri = directoryIdentifier
+            currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)?.setText(directoryIdentifier)
 
-            if (directoryIdentifier != null) {
-                // *** CORRECTED PART ***
-                // Update the builder, which is then used to create/update the final config
-                currentEmulatorConfigBuilder?.sourceRomDirectoryUri = directoryIdentifier
-                Log.i("EmulatorSettings", "Assigned directoryIdentifier to builder: $directoryIdentifier")
-
-                // Update the UI EditText if it's visible and being used to display this
-                // (Assuming etSourceDirectoryDisplay is the EditText from your showAddEditEmulatorDialog)
-                currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)?.setText(directoryIdentifier)
-
-            } else {
-                Log.e("EmulatorSettings", "Could not derive a usable directory identifier from URI: $treeUri")
-                Toast.makeText(this, "Could not identify the selected directory.", Toast.LENGTH_SHORT).show()
-                // Optionally clear the EditText if it failed:
-                // currentDialogView?.findViewById<EditText>(R.id.etSourceRomDirectory)?.setText("")
-            }
         }
     }
 
-    // Helper to extract a path-like identifier if not a direct tree URI
-    // This logic should mirror parts of getSourceDirectoryFromUri from MainActivity
-    private fun extractPathIdentifierFromGenericUri(uri: Uri): String? {
-        if (DocumentsContract.isDocumentUri(this, uri)) {
-            val documentId = DocumentsContract.getDocumentId(uri)
-            // If it's a tree URI passed here, its documentId is the treeDocumentId
-            if (documentId.contains(":")) { // e.g. "primary:Games" or "primary:Games/Subfolder"
-                return documentId // The documentId itself might be the path we want
-            }
-            // Add more specific parsing here if needed, similar to getSourceDirectoryFromUri's non-tree document parsing
-            Log.w("EmulatorSettings", "extractPathIdentifierFromGenericUri: Could not simply use documentId for: $documentId")
-            return documentId // Fallback to raw documentId if no ":"
-        } else if (ContentResolver.SCHEME_FILE == uri.scheme) {
-            return uri.path // For file URIs, the path is the identifier (potentially parent path if it's a file)
-        }
-        // Add other schemes or more complex parsing if needed
-        Log.w("EmulatorSettings", "extractPathIdentifierFromGenericUri: Unhandled URI scheme or structure: $uri")
-        return uri.toString() // Fallback to full string if no better parsing
-    }
+
+    // extractPathIdentifierFromGenericUri is not strictly needed if convertSafTreeUriToFilePath covers the main cases
+    // and you have a fallback to treeUri.toString(). If you need more complex generic URI parsing,
+    // you can reinstate or expand it.
 }
+
+// Dummy EmulatorConfig and EmulatorConfigManager for compilation if not defined elsewhere
+// data class EmulatorConfig(
+//    val id: String,
+//    val name: String,
+//    val sourceRomDirectoryUri: String?,
+//    val emulatorPackageName: String,
+//    val emulatorActivityName: String,
+//    val intentFlags: Int = 0,
+//    val customExtras: Bundle = Bundle()
+// )
+
+// object EmulatorConfigManager {
+//    fun loadEmulatorConfigs(context: Context): MutableList<EmulatorConfig> = mutableListOf()
+//    fun addEmulatorConfig(context: Context, config: EmulatorConfig) {}
+//    fun updateEmulatorConfig(context: Context, config: EmulatorConfig) {}
+//    fun deleteEmulatorConfig(context: Context, id: String) {}
+// }
+
+// Dummy AppPickerAdapter for compilation
+// class AppPickerAdapter(
+//    private val apps: List<AppInfo>,
+//    private val onAppSelected: (AppInfo) -> Unit
+// ) : RecyclerView.Adapter<AppPickerAdapter.ViewHolder>() {
+//    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) { /* ... */ }
+//    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder { /* ... */ }
+//    override fun onBindViewHolder(holder: ViewHolder, position: Int) { /* ... */ }
+//    override fun getItemCount(): Int = apps.size
+// }
+
+// Added missing PackageManager import
+

@@ -21,11 +21,13 @@
                 android:id="@+id/etEmulatorName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textCapWords" />
+                android:inputType="textCapWords"
+                android:imeOptions="actionNext" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <Button
             android:id="@+id/btnSelectSourceRomDirectory"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -50,6 +52,7 @@
 
         <Button
             android:id="@+id/btnSelectEmulatorApp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -67,7 +70,8 @@
                 android:id="@+id/etEmulatorPackage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textNoSuggestions" />
+                android:inputType="textNoSuggestions"
+                android:imeOptions="actionNext" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -82,26 +86,66 @@
                 android:id="@+id/etEmulatorActivity"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textNoSuggestions" />
+                android:inputType="textNoSuggestions"
+                android:imeOptions="actionNext" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Intent Flags:"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp"
+            style="@style/TextAppearance.MaterialComponents.Subtitle1"/>
+
+        <CheckBox
+            android:id="@+id/cbFlagActivityNewTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FLAG_ACTIVITY_NEW_TASK"/>
+
+        <CheckBox
+            android:id="@+id/cbFlagActivityClearTop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FLAG_ACTIVITY_CLEAR_TOP"/>
+
+        <CheckBox
+            android:id="@+id/cbFlagActivitySingleTop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FLAG_ACTIVITY_SINGLE_TOP"/>
+
+        <CheckBox
+            android:id="@+id/cbFlagActivityClearTask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FLAG_ACTIVITY_CLEAR_TASK"/>
+
+        <CheckBox
+            android:id="@+id/cbFlagActivityNoHistory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FLAG_ACTIVITY_NO_HISTORY"/>
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCustomParameters"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Custom Parameters (JSON: {&quot;key&quot;:&quot;value&quot;})">
+            android:layout_marginTop="16dp"
+        android:hint="Custom Parameters (JSON: {&quot;key&quot;:&quot;value&quot;})">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCustomParameters"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:gravity="top|start"
-                android:text="{}" />
-        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etCustomParameters"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:gravity="top|start"
+            android:imeOptions="actionDone"
+            android:text="{}" />
+    </com.google.android.material.textfield.TextInputLayout>
 
-    </LinearLayout>
-</ScrollView>
+</LinearLayout>
+    </ScrollView>
