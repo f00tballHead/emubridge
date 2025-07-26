@@ -93,40 +93,33 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Intent Flags:"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="4dp"
-            style="@style/TextAppearance.MaterialComponents.Subtitle1"/>
+            android:text="Intent Flags"
+            android:labelFor="@+id/btnSelectIntentFlags"
+            style="?attr/textAppearanceTitleMedium"
+            android:layout_marginTop="16dp"/>
 
-        <CheckBox
-            android:id="@+id/cbFlagActivityNewTask"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="FLAG_ACTIVITY_NEW_TASK"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <CheckBox
-            android:id="@+id/cbFlagActivityClearTop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="FLAG_ACTIVITY_CLEAR_TOP"/>
+            <TextView
+                android:id="@+id/tvSelectedIntentFlags"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="No flags selected"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"/>
 
-        <CheckBox
-            android:id="@+id/cbFlagActivitySingleTop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="FLAG_ACTIVITY_SINGLE_TOP"/>
-
-        <CheckBox
-            android:id="@+id/cbFlagActivityClearTask"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="FLAG_ACTIVITY_CLEAR_TASK"/>
-
-        <CheckBox
-            android:id="@+id/cbFlagActivityNoHistory"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="FLAG_ACTIVITY_NO_HISTORY"/>
+            <Button
+                android:id="@+id/btnSelectIntentFlags"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Select Flags" />
+        </LinearLayout>
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCustomParameters"

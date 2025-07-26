@@ -31,7 +31,7 @@ class EmulatorConfigsAdapter(
         val config = configs[position]
         holder.nameTextView.text = "Name: ${config.name}"
         // Extract a displayable name from the URI if possible, or just show the URI
-        holder.directoryTextView.text = "Source Dir: ${config.sourceRomDirectoryUri.takeLast(30)}" // Show last part
+        holder.directoryTextView.text = "Source Dir: ${config.sourceRomDirectoryUri?.takeLast(30)}" // Show last part
         holder.emulatorInfoTextView.text = "Emulator: ${config.emulatorPackageName.takeLast(25)}"
 
         holder.editButton.setOnClickListener { onEdit(config) }

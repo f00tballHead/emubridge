@@ -59,7 +59,7 @@ object EmulatorConfigManager {
 
         // --- Direct Match Attempt (Primary Strategy) ---
         // This assumes derivedRomDirectoryIdentifier IS the exact identifier we are looking for (e.g. "primary:Games")
-        val directMatch = configs.firstOrNull { config ->
+        val directMatch = configs.firstOrNull { config -> !config.sourceRomDirectoryUri.isNullOrBlank() &&
             derivedRomDirectoryIdentifier.contains(config.sourceRomDirectoryUri)
         }
         if (directMatch != null) {

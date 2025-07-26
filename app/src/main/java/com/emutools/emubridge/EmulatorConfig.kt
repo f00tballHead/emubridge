@@ -6,7 +6,7 @@ import java.util.UUID
 data class EmulatorConfig(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val sourceRomDirectoryUri: String,
+    val sourceRomDirectoryUri: String?,
     val emulatorPackageName: String,
     val emulatorActivityName: String,
     val intentFlags: Int = 0,
