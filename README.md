@@ -43,7 +43,9 @@ EmuBridge handles:
 
 ### 2. Configure EmuBridge Settings
    Open EmuBridge:
-   *   **ROM Destination Directory**: This is the most crucial step. You **must** select a folder where EmuBridge can copy ROMs. Use the "Select ROM Directory" option and grant access to a folder of your choice (e.g., `Internal Storage/EmuBridgeCache/`). This directory will be managed by EmuBridge. IMPORTANT: Ensure this is an empty directory that is only used for EmuBridge as this gets cleared and I won't be held responsible for any data loss!)
+   *   **ROM Cache Directory**: This is the most crucial step. You **must** select a folder where EmuBridge can copy ROMs. Use the "ROM Cache Directory" option and grant access to a folder of your choice (e.g., `Internal Storage/EmuBridgeCache/`). This directory will be managed by EmuBridge. IMPORTANT: Ensure this is an empty directory that is only used for EmuBridge as this gets cleared and I won't be held responsible for any data loss!)
+
+   *   **Emulator Configurations**:
 
 ### 3. Frontend Configuration Examples (ES-DE)
 
@@ -77,3 +79,13 @@ Example es_systems.xml config line for Saturn using RetroArch Yabause core:
 
 Example 'player' config for Daijiso:
 <img width="3040" height="1904" alt="Screenshot_20250717-204631" src="https://github.com/user-attachments/assets/cc4b8fb8-6aef-46c5-9fab-92276a38038e" />
+
+
+Configuring Beacon
+```xml
+To use with Beacon:
+1 - Add platform and select EmuBridge as 'Player app'.
+2 - Select Advanced -> Use custom launch and use the following command:
+      "am start -n com.emutools.emulaunch/.MainActivity -a android.intent.action.VIEW -d {file_uri} -e bootPath=%ROMCACHE%"
+3 - Ensure target emulator is configured inside EmuBridge.
+```
