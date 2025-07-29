@@ -15,7 +15,6 @@
             app:key="emulator_configurations_screen"
             app:title="Emulator Configurations"
             app:summary="Define and manage specific emulator setups">
-            <!-- We will launch the Activity via an Intent in the Fragment -->
         </Preference>
 
     </PreferenceCategory>

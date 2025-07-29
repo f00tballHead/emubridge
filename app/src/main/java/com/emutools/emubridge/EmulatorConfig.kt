@@ -10,7 +10,9 @@ data class EmulatorConfig(
     val emulatorPackageName: String,
     val emulatorActivityName: String,
     val intentFlags: Int = 0,
-    val customExtras: Bundle = Bundle()
+    val customExtras: Bundle = Bundle().apply {
+        putString("bootPath", "%ROMCACHE%")
+    }
 ) {
     fun hasFlag(flag: Int): Boolean {
         return (intentFlags and flag) == flag

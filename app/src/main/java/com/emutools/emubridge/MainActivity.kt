@@ -108,6 +108,8 @@ class MainActivity : AppCompatActivity() {
 
             val romSourceDirectoryString = getSourceDirectoryFromUri(this, romUri)
 
+            statusText.text = romUri.toString() + "\r\n" + romSourceDirectoryString
+
             if (romSourceDirectoryString != null) {
                 val matchingConfig = EmulatorConfigManager.findConfigForRomDirectory(this, romSourceDirectoryString)
 
@@ -177,30 +179,69 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun getSourceDirectoryFromUri(context: Context, uri: Uri): String? {
-        val filePath = uri.path
-        if (filePath.isNullOrBlank()) {
-            Log.e("getSourceDirectory", "File path from URI is null or blank.")
+        val scheme = uri.scheme
+        Log.d("getSourceDirectory", "Attempting to get directory for URI: $uri, Scheme: $scheme")
+
+        if (ContentResolver.SCHEME_FILE.equals(scheme, ignoreCase = true)) {
+            val filePath = uri.path
+            if (filePath.isNullOrBlank()) {
+                Log.e("getSourceDirectory", "File path from file URI is null or blank.")
+                return null
+            }
+            try {
+                val file = File(filePath)
+                return file.parentFile?.absolutePath ?: file.parent
+            } catch (e: SecurityException) {
+                Log.e("getSourceDirectory", "Security exception for file URI '$filePath': ${e.message}", e)
+                return null
+            } catch (e: Exception) {
+                Log.e("getSourceDirectory", "Error for file URI '$filePath': ${e.message}", e)
+                return null
+            }
+        } else if (ContentResolver.SCHEME_CONTENT.equals(scheme, ignoreCase = true)) {
+            if (DocumentsContract.isDocumentUri(context, uri)) {
+                val documentId = DocumentsContract.getDocumentId(uri)
+                Log.d("getSourceDirectory", "Document ID: $documentId for content URI: $uri") // e.g., "primary:MyFolder/MySub/MyFile.txt" or "123-ABC:Docs/Report.pdf"
+
+                var transformedPath = documentId.replaceFirst(":", "/") // e.g., "primary/MyFolder/MySub/MyFile.txt"
+
+                // Ensure it starts with a slash if it's meant to look like an absolute path
+                if (!transformedPath.startsWith("/")) {
+                    transformedPath = "/$transformedPath" // e.g., "/primary/MyFolder/MySub/MyFile.txt"
+                }
+
+                // Now, get the parent directory from this transformed path
+                val lastSlashIndex = transformedPath.lastIndexOf('/')
+                return if (lastSlashIndex > 0) { // lastSlashIndex > 0 ensures we don't return an empty string for "/file.txt"
+                    transformedPath.substring(0, lastSlashIndex) // e.g., "/primary/MyFolder/MySub"
+                } else if (lastSlashIndex == 0 && transformedPath.length > 1) {
+                    // This means it's like "/file.txt", parent is "/" (root of this transformed structure)
+                    "/"
+                } else {
+                    // Might be just "/filename" (no further slashes after the first) or an unusual case.
+                    // Or if documentId was just "primary:file.txt" -> "/primary/file.txt", parent is "/primary"
+                    // Or if documentId was just "file.txt" (no colon) -> "/file.txt", parent is "/"
+                    // This part might need adjustment based on how "root" of a volume is represented.
+                    // If transformedPath is like "/primary", lastSlashIndex is 0.
+                    // If it's the root of a volume like "/primary", its "parent" in this context is itself for matching.
+                    // Or perhaps you expect null if it's already a root-like path.
+                    // Let's assume if there's no further slash after the initial one (or volume name), it is the directory itself.
+                    if (transformedPath.count { it == '/' } <= 1 && transformedPath.length > 1) { // e.g. "/primary" or "/someFileInRoot"
+                        transformedPath // It's likely a directory itself at this level
+                    } else {
+                        // Fallback or error for more complex cases not fitting the simple parent model
+                        Log.w("getSourceDirectory", "Could not determine parent from transformed SAF path: $transformedPath")
+                        null // Or return transformedPath if it should represent the directory itself
+                    }
+                }
+            } else {
+                Log.w("getSourceDirectory", "Unhandled content URI (not a document URI): $uri. Falling back to uri.path or uri.toString().")
+                return uri.path ?: uri.toString() // This part likely won't match your SAF-derived config paths
+            }
+        } else {
+            Log.w("getSourceDirectory", "Unsupported URI scheme: $scheme for URI: $uri")
             return null
         }
-        try {
-            val file = File(filePath)
-            // If file.parent is null, it's likely a root path or just a filename.
-            // file.parentFile?.absolutePath is safer for getting the parent directory path.
-            return file.parentFile?.absolutePath ?: file.parent // Fallback to file.parent if parentFile is null
-        } catch (e: SecurityException) {
-            Log.e("getSourceDirectory", "Security exception accessing path '$filePath': ${e.message}", e)
-            return null
-        } catch (e: Exception) {
-            Log.e("getSourceDirectory", "Error processing path '$filePath': ${e.message}", e)
-            return null
-        }
-        // The extensive commented-out SAF/Content URI parsing logic can be complex
-        // and error-prone. The File(uri.path) approach is simpler but relies on
-        // the URI path being a direct file system path, which isn't always true
-        // for content:// URIs. If you receive content:// URIs that don't map
-        // directly to file paths, the original more complex parsing (or parts of it)
-        // might be necessary, focusing on DocumentsContract and MediaStore if applicable.
-        // For now, sticking to the provided simpler version.
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
